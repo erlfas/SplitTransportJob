@@ -11,11 +11,6 @@ import (
 	"os"
 )
 
-type Job struct {
-	ID          int
-	Consignment string
-}
-
 func main() {
 
 	path := os.Args[1]
@@ -58,30 +53,6 @@ func main() {
 		if numErrors >= 10 {
 			log.Fatal("Too many errors.")
 			break
-		}
-	}
-}
-
-func worker(id int, jobs <-chan *Job, results chan<- string) {
-	for {
-		select {
-		case job := <-jobs:
-			fmt.Println("Worker #", id, " starting job #", job.ID)
-			resp, err := http.Post(
-				"http://localhost:8080/TransportJobMapper/rest/transportjob/save",
-				"application/xml",
-				bytes.NewBuffer([]byte(job.Consignment)))
-
-			if err != nil {
-				log.Fatal("Worker #", id, " failed to save job", err)
-				results <- "500"
-			}
-
-			defer resp.Body.Close()
-			body, _ := ioutil.ReadAll(resp.Body)
-			bodyString := string(body)
-			fmt.Println("Worker #", id, " finished job #", job.ID, " with status ", bodyString)
-			results <- bodyString
 		}
 	}
 }
