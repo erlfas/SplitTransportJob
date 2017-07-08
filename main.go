@@ -20,7 +20,7 @@ func main() {
 	jobs := make(chan string, 100)
 	results := make(chan string, 100)
 
-	for w := 1; w <= 3; w++ {
+	for w := 1; w <= 8; w++ {
 		go worker(w, jobs, results)
 	}
 
@@ -41,11 +41,13 @@ func main() {
 
 func worker(id int, jobs <-chan string, results chan<- string) {
 	for job := range jobs {
-		resp, err := http.Post("localhost:8080/TransportJobMapper/rest/transportjob/save", "application/xml", bytes.NewBuffer([]byte(job)))
-		defer resp.Body.Close()
+		fmt.Println("Worker #", id, " processing job.")
+		resp, err := http.Post("http://localhost:8080/TransportJobMapper/rest/transportjob/save", "application/xml", bytes.NewBuffer([]byte(job)))
 		if err != nil {
-			log.Fatal(id, ": Failed to save job")
+			log.Fatal(id, ": Failed to save job", err)
+			continue
 		}
+		defer resp.Body.Close()
 		body, _ := ioutil.ReadAll(resp.Body)
 		bodyString := string(body)
 		results <- bodyString
