@@ -5,6 +5,8 @@ import (
 	"sync"
 )
 
+// Thanks to https://brandur.org/go-worker-pool
+
 type Task struct {
 	ID     int
 	Result string
