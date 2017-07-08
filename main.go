@@ -11,46 +11,101 @@ import (
 	"os"
 )
 
+type Job struct {
+	ID          int
+	Consignment string
+}
+
 func main() {
 
 	path := os.Args[1]
 
 	consignments := getConsignments(path)
 
-	jobs := make(chan string, 100)
-	results := make(chan string, 100)
+	var tasks []*Task
 
-	for w := 1; w <= 8; w++ {
-		go worker(w, jobs, results)
+	for id, consignment := range consignments {
+		slice := make([]*Task, 1)
+		jobID := id
+		slice[0] = NewTask(jobID, func() string {
+			resp, err := http.Post(
+				"http://localhost:8080/TransportJobMapper/rest/transportjob/save",
+				"application/xml",
+				bytes.NewBuffer([]byte(consignment)))
+
+			if err != nil {
+				return "500"
+			}
+
+			defer resp.Body.Close()
+			body, _ := ioutil.ReadAll(resp.Body)
+			bodyString := string(body)
+
+			return bodyString
+		})
+		tasks = append(tasks, slice...)
 	}
 
-	numConsignments := len(consignments)
+	pool := NewPool(tasks, 8)
+	pool.Run()
 
-	fmt.Println("# consignments: ", numConsignments)
-
-	for _, consignment := range consignments {
-		jobs <- consignment
+	var numErrors int
+	for _, task := range pool.Tasks {
+		if task.Result == "400" || task.Result == "500" {
+			log.Fatal("Task failed")
+			numErrors++
+		}
+		if numErrors >= 10 {
+			log.Fatal("Too many errors.")
+			break
+		}
 	}
 
-	close(jobs)
+	// jobs := make(chan *Job)
+	// results := make(chan string)
 
-	for r := 1; r <= numConsignments; r++ {
-		fmt.Println(<-results)
-	}
+	// for w := 1; w <= 8; w++ {
+	// 	go worker(w, jobs, results)
+	// }
+
+	// numConsignments := len(consignments)
+
+	// fmt.Println("# consignments: ", numConsignments)
+
+	// for id, consignment := range consignments {
+	// 	jobs <- &Job{id, consignment}
+	// }
+
+	// fmt.Println("Finished assigning jobs. Now waiting for results.")
+
+	// close(jobs)
+
+	// for r := 1; r <= numConsignments; r++ {
+	// 	fmt.Println(<-results)
+	// }
 }
 
-func worker(id int, jobs <-chan string, results chan<- string) {
-	for job := range jobs {
-		fmt.Println("Worker #", id, " processing job.")
-		resp, err := http.Post("http://localhost:8080/TransportJobMapper/rest/transportjob/save", "application/xml", bytes.NewBuffer([]byte(job)))
-		if err != nil {
-			log.Fatal(id, ": Failed to save job", err)
-			continue
+func worker(id int, jobs <-chan *Job, results chan<- string) {
+	for {
+		select {
+		case job := <-jobs:
+			fmt.Println("Worker #", id, " starting job #", job.ID)
+			resp, err := http.Post(
+				"http://localhost:8080/TransportJobMapper/rest/transportjob/save",
+				"application/xml",
+				bytes.NewBuffer([]byte(job.Consignment)))
+
+			if err != nil {
+				log.Fatal("Worker #", id, " failed to save job", err)
+				results <- "500"
+			}
+
+			defer resp.Body.Close()
+			body, _ := ioutil.ReadAll(resp.Body)
+			bodyString := string(body)
+			fmt.Println("Worker #", id, " finished job #", job.ID, " with status ", bodyString)
+			results <- bodyString
 		}
-		defer resp.Body.Close()
-		body, _ := ioutil.ReadAll(resp.Body)
-		bodyString := string(body)
-		results <- bodyString
 	}
 }
 
