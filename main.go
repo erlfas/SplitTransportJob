@@ -7,66 +7,68 @@ import (
 	"io"
 	"log"
 	"os"
-	"strings"
 )
 
-type AdditionalServiceCode struct {
-	Code string `xml:"AdditionalServiceCode"`
+func main() {
+
+	path := os.Args[1]
+
+	consignments := getConsignments(path)
+
+	fmt.Println("# consignments: ", len(consignments))
+
+	for _, s := range consignments {
+		fmt.Println(s)
+	}
 }
 
-type TransportJob struct {
-}
+func getHeader(path string) string {
+	xmlFile, err := os.Open(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	decoder := xml.NewDecoder(xmlFile)
 
-type Reference struct {
-	ReferenceNo   string `xml:"ReferenceNo"`
-	ReferenceType string `xml:"ReferenceType"`
-}
+	buffer := bytes.NewBufferString("")
 
-type TransportLegType struct {
-	Value string
-}
+MainLoop:
+	for {
+		token, err := decoder.RawToken()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			fmt.Fprintf(os.Stderr, "xmlselect: %v\n", err)
+			os.Exit(1)
+		}
 
-type Consignment struct {
-	ConsignmentId string `xml:"consignmentId,attr"`
-
-	DateAndTimes struct {
-		LoadingDate struct {
-			Date string `xml:"Date"`
-		} `xml:"LoadingDate"`
-	} `xml:"DateAndTimes"`
-
-	Service struct {
-		BasicServiceCode       string                  `xml:"BasicServiceCode"`
-		AdditionalServiceCodes []AdditionalServiceCode `xml:"AdditionalServiceCode"`
-	} `xml:"Service"`
-
-	GoodsValue struct {
-		CurrencyIdentificationCode string `xml:"currencyIdentificationCode,attr"`
-		GoodsValue                 string `xml:",chatdata"`
-	} `xml:"GoodsValue"`
-
-	NumberOfPackages struct {
-		UnitCode string `xml:"unitCode,attr"`
-		Value    string `xml:",chardata"`
-	} `xml:"NumberOfPackages"`
-
-	TotalGrossWeight struct {
-		UnitCode string `xml:"unitCode,attr"`
-		Value    string `xml:",chardata"`
-	} `xml:"TotalGrossWeight"`
-
-	TotalVolume struct {
-		UnitCode string `xml:"unitCode,attr"`
-		Value    string `xml:",chardata"`
+		switch se := token.(type) {
+		case xml.StartElement:
+			if se.Name.Local == "Consignment" {
+				break MainLoop
+			} else {
+				buffer.WriteString(getStartTag(se))
+			}
+			break
+		case xml.Directive:
+			buffer.WriteString(string(se))
+			break
+		case xml.EndElement:
+			buffer.WriteString(getEndTag(se))
+			break
+		case xml.CharData:
+			buffer.WriteString(string(se))
+			break
+		case xml.ProcInst:
+			buffer.WriteString(getProcInst(se))
+			break
+		}
 	}
 
-	References []Reference `xml:"Reference"`
-
-	TransportLeg []TransportLegType `xml:"TransportLeg>TransportLegType"`
+	return buffer.String()
 }
 
-func main() {
-	xmlFile, err := os.Open("/home/erlend/Downloads/z14_730825601_21062017110235403.xml")
+func getConsignments(path string) []string {
+	xmlFile, err := os.Open(path)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -89,7 +91,6 @@ func main() {
 		case xml.StartElement:
 			if se.Name.Local == "Consignment" {
 				tag := getStartTag(se)
-				//fmt.Println(tag)
 				isUnderConsignment = true
 				buffer.WriteString(tag)
 			} else if isUnderConsignment {
@@ -100,7 +101,6 @@ func main() {
 		case xml.EndElement:
 			if se.Name.Local == "Consignment" {
 				tag := getEndTag(se)
-				//fmt.Println(tag)
 				isUnderConsignment = false
 				buffer.WriteString(tag)
 				bf := buffer.String()
@@ -110,27 +110,36 @@ func main() {
 				buffer = bytes.NewBufferString("")
 			} else if isUnderConsignment {
 				tag := getEndTag(se)
-				//fmt.Println(tag)
 				buffer.WriteString(tag)
 			}
 			break
 		case xml.CharData:
 			if isUnderConsignment {
-				s := strings.TrimSpace(string(se.Copy()))
-				if len(s) > 0 {
-					//fmt.Println(s)
-					buffer.WriteString(s)
-				}
+				buffer.WriteString(string(se))
 			}
 			break
 		}
 	}
 
-	fmt.Println(len(consignments))
+	header := getHeader(path)
+	footer := "\n</TransportJob>"
 
-	for _, s := range consignments {
-		fmt.Println("C: ", s)
+	for i, c := range consignments {
+		consignments[i] = header + c + footer
 	}
+
+	return consignments
+}
+
+func getProcInst(elm xml.ProcInst) string {
+	buffer := bytes.NewBufferString("")
+	buffer.WriteString("<?")
+	buffer.WriteString(elm.Target)
+	buffer.WriteString(" ")
+	buffer.WriteString(string(elm.Inst))
+	buffer.WriteString("?>")
+
+	return buffer.String()
 }
 
 func getStartTag(elm xml.StartElement) string {
