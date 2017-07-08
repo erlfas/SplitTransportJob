@@ -52,7 +52,7 @@ func main() {
 	var numErrors int
 	for _, task := range pool.Tasks {
 		if task.Result == "400" || task.Result == "500" {
-			log.Fatal("Task failed")
+			log.Fatal("Task #", task.ID, " failed.")
 			numErrors++
 		}
 		if numErrors >= 10 {
@@ -60,29 +60,6 @@ func main() {
 			break
 		}
 	}
-
-	// jobs := make(chan *Job)
-	// results := make(chan string)
-
-	// for w := 1; w <= 8; w++ {
-	// 	go worker(w, jobs, results)
-	// }
-
-	// numConsignments := len(consignments)
-
-	// fmt.Println("# consignments: ", numConsignments)
-
-	// for id, consignment := range consignments {
-	// 	jobs <- &Job{id, consignment}
-	// }
-
-	// fmt.Println("Finished assigning jobs. Now waiting for results.")
-
-	// close(jobs)
-
-	// for r := 1; r <= numConsignments; r++ {
-	// 	fmt.Println(<-results)
-	// }
 }
 
 func worker(id int, jobs <-chan *Job, results chan<- string) {
