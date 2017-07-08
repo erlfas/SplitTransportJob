@@ -37,8 +37,8 @@ func NewPool(tasks []*Task, concurrency int) *Pool {
 }
 
 func (p *Pool) Run() {
-	for i := 0; i < p.concurrency; i++ {
-		go p.work(i)
+	for workerID := 0; workerID < p.concurrency; workerID++ {
+		go p.work(workerID)
 	}
 
 	p.wg.Add(len(p.Tasks))
