@@ -5,7 +5,9 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 )
 
@@ -15,10 +17,38 @@ func main() {
 
 	consignments := getConsignments(path)
 
-	fmt.Println("# consignments: ", len(consignments))
+	jobs := make(chan string, 100)
+	results := make(chan string, 100)
 
-	for _, s := range consignments {
-		fmt.Println(s)
+	for w := 1; w <= 3; w++ {
+		go worker(w, jobs, results)
+	}
+
+	numConsignments := len(consignments)
+
+	fmt.Println("# consignments: ", numConsignments)
+
+	for _, consignment := range consignments {
+		jobs <- consignment
+	}
+
+	close(jobs)
+
+	for r := 1; r <= numConsignments; r++ {
+		fmt.Println(<-results)
+	}
+}
+
+func worker(id int, jobs <-chan string, results chan<- string) {
+	for job := range jobs {
+		resp, err := http.Post("localhost:8080/TransportJobMapper/rest/transportjob/save", "application/xml", bytes.NewBuffer([]byte(job)))
+		defer resp.Body.Close()
+		if err != nil {
+			log.Fatal(id, ": Failed to save job")
+		}
+		body, _ := ioutil.ReadAll(resp.Body)
+		bodyString := string(body)
+		results <- bodyString
 	}
 }
 
