@@ -41,11 +41,12 @@ func main() {
 				"application/xml",
 				bytes.NewBuffer([]byte(consignment)))
 
+			defer resp.Body.Close()
+
 			if err != nil {
 				return "500"
 			}
 
-			defer resp.Body.Close()
 			body, _ := ioutil.ReadAll(resp.Body)
 			bodyString := string(body)
 
