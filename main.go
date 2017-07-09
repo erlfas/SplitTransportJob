@@ -24,7 +24,8 @@ func main() {
 		panic(err)
 	}
 
-	path := os.Args[3]
+	restEndpoint := os.Args[3]
+	path := os.Args[4]
 
 	header := getHeader(path)
 	consignments := getConsignments(path)
@@ -37,7 +38,7 @@ func main() {
 		jobID := id
 		slice[0] = NewTask(jobID, func() string {
 			resp, err := http.Post(
-				"http://localhost:8080/TransportJobMapper/rest/transportjob/save",
+				restEndpoint,
 				"application/xml",
 				bytes.NewBuffer([]byte(consignment)))
 
