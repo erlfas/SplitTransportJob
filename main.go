@@ -14,14 +14,21 @@ import (
 
 func main() {
 
-	path := os.Args[1]
-	batchSize, err := strconv.Atoi(os.Args[2])
+	batchSize, err := strconv.Atoi(os.Args[1])
 	if err != nil {
 		panic(err)
 	}
 
+	numWorkers, err := strconv.Atoi(os.Args[2])
+	if err != nil {
+		panic(err)
+	}
+
+	path := os.Args[3]
+
+	header := getHeader(path)
 	consignments := getConsignments(path)
-	batchedConsignments := groupConsignments(consignments, batchSize)
+	batchedConsignments := groupConsignments(header, consignments, batchSize)
 
 	var tasks []*Task
 
@@ -47,7 +54,7 @@ func main() {
 		tasks = append(tasks, slice...)
 	}
 
-	pool := NewPool(tasks, 8)
+	pool := NewPool(tasks, numWorkers)
 	pool.Run()
 
 	var numErrors int
@@ -108,7 +115,7 @@ MainLoop:
 	return buffer.String()
 }
 
-func groupConsignments(consignments []string, batchSize int) []string {
+func groupConsignments(header string, consignments []string, batchSize int) []string {
 	var newConsignmentList []string
 	numInBatch := 0
 	consignmentBatch := bytes.NewBufferString("")
@@ -129,6 +136,12 @@ func groupConsignments(consignments []string, batchSize int) []string {
 		newConsignmentList = append(newConsignmentList, consignmentBatch.String())
 		numInBatch = 0
 		consignmentBatch = bytes.NewBufferString("")
+	}
+
+	footer := "\n</TransportJob>"
+
+	for i, c := range newConsignmentList {
+		newConsignmentList[i] = header + c + footer
 	}
 
 	return newConsignmentList
@@ -186,13 +199,6 @@ func getConsignments(path string) []string {
 			}
 			break
 		}
-	}
-
-	header := getHeader(path)
-	footer := "\n</TransportJob>"
-
-	for i, c := range consignments {
-		consignments[i] = header + c + footer
 	}
 
 	return consignments
