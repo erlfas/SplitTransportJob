@@ -9,17 +9,23 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 )
 
 func main() {
 
 	path := os.Args[1]
+	batchSize, err := strconv.Atoi(os.Args[2])
+	if err != nil {
+		panic(err)
+	}
 
 	consignments := getConsignments(path)
+	batchedConsignments := groupConsignments(consignments, batchSize)
 
 	var tasks []*Task
 
-	for id, consignment := range consignments {
+	for id, consignment := range batchedConsignments {
 		slice := make([]*Task, 1)
 		jobID := id
 		slice[0] = NewTask(jobID, func() string {
@@ -100,6 +106,32 @@ MainLoop:
 	}
 
 	return buffer.String()
+}
+
+func groupConsignments(consignments []string, batchSize int) []string {
+	var newConsignmentList []string
+	numInBatch := 0
+	consignmentBatch := bytes.NewBufferString("")
+
+	for _, consignment := range consignments {
+		if numInBatch >= batchSize {
+			newConsignmentList = append(newConsignmentList, consignmentBatch.String())
+			consignmentBatch = bytes.NewBufferString("")
+			numInBatch = 0
+		}
+
+		consignmentBatch.WriteString(consignment)
+		consignmentBatch.WriteString("\n")
+		numInBatch++
+	}
+
+	if numInBatch > 0 {
+		newConsignmentList = append(newConsignmentList, consignmentBatch.String())
+		numInBatch = 0
+		consignmentBatch = bytes.NewBufferString("")
+	}
+
+	return newConsignmentList
 }
 
 func getConsignments(path string) []string {
